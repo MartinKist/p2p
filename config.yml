@@ -1,11 +1,14 @@
-# Hostname: sers-mahlzeit.de
-# IPv4: 12.3.123.34
-# IPv6: fe80::450d:f070:8d1:a56
 
-max_outbound: 2
-max_inbound: 5
+# Listening port for incoming connections
+port: 5007
 
+# desired amount of outgoing connections
+outgoing: 2
 
+# maximum amount of incoming connections
+max_incoming: 10
+
+# Preconfigured peers
 Peers:
   -
     Hostname: localhost
