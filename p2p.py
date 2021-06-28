@@ -8,7 +8,7 @@ import yaml
 from twisted.internet import reactor
 from twisted.internet.endpoints import TCP4ServerEndpoint
 
-from main import P2PFactory
+from main import PeerFactory
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--debug', help='set logging level to debug', action='store_true')
@@ -34,5 +34,5 @@ except FileNotFoundError:
 
 
 endpoint = TCP4ServerEndpoint(reactor, 8007)
-endpoint.listen(P2PFactory(config))
+endpoint.listen(PeerFactory(config))
 reactor.run()
