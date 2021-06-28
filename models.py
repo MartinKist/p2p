@@ -9,11 +9,8 @@ from abc import ABC, abstractmethod
 from hashlib import sha256
 from typing import Union
 
+
 BYTEORDER = 'little'
-
-
-def calculate_checksum(data: bytes) -> bytes:
-    return sha256(sha256(data).digest()).digest()[:4]
 
 
 class MessageError(Exception):
@@ -54,12 +51,16 @@ class VarInt:
 
     @property
     def __len__(self) -> int:
-        """Returns the number of bytes this VarInt has, including prefix, if existent."""
+        """
+        Returns the number of bytes this VarInt has, including prefix, if existent.
+        """
         return len(bytes(self))
 
     @staticmethod
     def get_length(first_byte: int) -> int:
-        """Returns the expected length of the VarInt, by examining the first byte."""
+        """
+        Returns the expected length of the VarInt, by examining the first byte.
+        """
         if first_byte < 253:
             return 1
         elif first_byte == 253:
@@ -91,6 +92,10 @@ class Message(StructABC, ABC):
     # TODO: write down specification
     # https://en.bitcoin.it/wiki/Protocol_documentation#Common_structures
 
+    @staticmethod
+    def calculate_checksum(data: bytes) -> bytes:
+        return sha256(sha256(data).digest()).digest()[:4]
+
     @property
     @abstractmethod
     def message_type(self) -> bytes:
@@ -103,7 +108,7 @@ class Message(StructABC, ABC):
 
     @property
     def checksum(self) -> bytes:
-        return calculate_checksum(self.payload)
+        return self.calculate_checksum(self.payload)
 
     @property
     def length(self) -> int:
@@ -123,7 +128,7 @@ class Message(StructABC, ABC):
         checksum = data[16:20]
         payload = data[20:20 + length]
 
-        if calculate_checksum(payload) == checksum and msg_type in message_types:
+        if cls.calculate_checksum(payload) == checksum and msg_type in message_types:
             return message_types[msg_type].from_bytes(payload)
         else:
             raise MessageError(msg_type, length, checksum, payload)
@@ -149,6 +154,9 @@ class NetworkAddress(StructABC):
         # if address is 4 bytes long it is an IPv4-address
         if len(self.address) == 4:
             self.address = b'\0' * 10 + b'\xff' * 2 + self.address
+            self.ipversion = 4
+        else:
+            self.ipversion = 6
 
     def __bytes__(self) -> bytes:
         return self.timestamp.to_bytes(4, BYTEORDER) \
@@ -162,6 +170,14 @@ class NetworkAddress(StructABC):
         port = int.from_bytes(data[20:22], BYTEORDER)
 
         return cls(address, port, timestamp)
+
+    def __str__(self):
+        if self.ipversion == 4:
+            values = self.address[-4:]
+        else:
+            values = self.address
+
+        return f'{".".join(str(val) for val in values)}:{self.port}'
 
 
 class Version(Message):
@@ -290,7 +306,18 @@ class GetAddr(HeaderOnly):
 
 
 class Reject(Message):
-    pass
+
+    @property
+    def message_type(self) -> bytes:
+        return b'reject'.ljust(12, b'\0')
+
+    @property
+    def payload(self) -> bytes:
+        pass
+
+    @classmethod
+    def from_bytes(cls, data: bytes) -> Message:
+        pass
 
 
 message_types = {b'version': Version,
@@ -300,11 +327,3 @@ message_types = {b'version': Version,
                  b'addr': Addr,
                  b'getaddr': GetAddr,
                  b'reject': Reject}
-
-
-if __name__ == '__main__':
-    addr1 = NetworkAddress(b'\x0a\x01\xa8\x04', 500)
-    addr2 = NetworkAddress(b'\255\255\255\255', 5000)
-    v = Version(1231, addr1, addr2)
-    l = Addr([addr1, addr2])
-    l2 = Message.from_bytes(bytes(l))
