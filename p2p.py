@@ -2,26 +2,28 @@
 # (c) 2021 Martin Kistler
 
 import argparse
-import logging
+import sys
 
 import yaml
-from twisted.internet import reactor
-from twisted.internet.endpoints import TCP4ServerEndpoint
+from twisted.logger import Logger, globalLogPublisher, ILogObserver, eventAsText
+from zope.interface import provider
 
-from main import PeerFactory
+from client import P2PClient
 
+
+# TODO: Arguemnt parsing -> docker
 parser = argparse.ArgumentParser()
 parser.add_argument('--debug', help='set logging level to debug', action='store_true')
 args = parser.parse_args()
 
 
 # set up logging
-if args.debug:
-    loglvl = logging.DEBUG
-else:
-    loglvl = logging.WARNING
+@provider(ILogObserver)
+def simpleObserver(event):
+    print(eventAsText(event))
 
-logging.basicConfig(format='%(levelname)s:%(message)s', level=loglvl)   # TODO: log timestamps
+log = Logger()
+globalLogPublisher.addObserver(simpleObserver)
 
 
 # load config file
@@ -30,9 +32,8 @@ try:
         # TODO: validate config?
         config = yaml.load(file, Loader=yaml.Loader)
 except FileNotFoundError:
-    logging.warning('No configuration file found')
+    log.critical('No configuration file found')
+    sys.exit()
 
 
-endpoint = TCP4ServerEndpoint(reactor, 8007)
-endpoint.listen(PeerFactory(config))
-reactor.run()
+P2PClient(config).run()
