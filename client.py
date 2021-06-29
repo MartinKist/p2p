@@ -61,14 +61,14 @@ class P2PClient:
         self.incoming_connections.update({str(connection): connection})
 
     def remove_incoming_connection(self, connection: NetworkAddress):
-        if str(connection) in self.known_participants:
+        if str(connection) in self.incoming_connections:
             del self.incoming_connections[str(connection)]
 
     def add_outgoing_connection(self, connection: NetworkAddress):
         self.outgoing_connections.update({str(connection): connection})
 
     def remove_outgoing_connection(self, connection: NetworkAddress):
-        if str(connection) in self.known_participants:
+        if str(connection) in self.outgoing_connections:
             del self.outgoing_connections[str(connection)]
 
     def make_new_connection(self):
@@ -93,15 +93,16 @@ class P2PClient:
         endpoint = TCP4ClientEndpoint(reactor, peer.address, peer.port)
         attempt = endpoint.connect(OutgoingPeerFactory(self))
 
-        attempt.addCallback(self.on_connect_success)
+        attempt.addCallback(self.on_connect_success, peer)
         attempt.addErrback(self.on_connect_error, peer)
         reactor.callLater(30, attempt.cancel)   # Timeout
 
-    def on_connect_success(self):
+    def on_connect_success(self, result, peer: NetworkAddress):
+        self.log.debug(f'successfully connected to {peer}')
         self.check_connections()
 
     def on_connect_error(self, reason: Failure, participant: NetworkAddress):
-        self.log.info(f'connection to {participant} failed:\n' + str(reason))
+        self.log.info(f'connection to {participant} failed:\n' + str(reason.args[0]))
         self.remove_participant(participant)
 
     def check_connections(self):
@@ -109,8 +110,8 @@ class P2PClient:
         Check the health of this client's connections and attempt to make new connections if the desired amount of
         outgoing connections is not reached.
         """
-        self.log.info(f'Connected to {len(self.connections)} peers')
-        self.log.info('I know the following addresses: \n' + '\n'.join(adr for adr in self.known_participants))
+        self.log.debug(f'Connected to {len(self.connections)} peers')
+        self.log.debug('I know of the following participants: \n' + '\n'.join(adr for adr in self.known_participants))
 
         if len(self.outgoing_connections) < self.outgoing:
             self.make_new_connection()
