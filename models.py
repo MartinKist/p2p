@@ -189,10 +189,11 @@ class HeaderOnly(Message, ABC):
 
 
 class Version(Message):
-    def __init__(self, version: int, addr_recv: NetworkAddress, addr_from: NetworkAddress, timestamp: int = None):
+    def __init__(self, version: int, addr_recv: NetworkAddress, addr_from: NetworkAddress, nonce: bytes, timestamp: int = None):
         self.version = version
         self.addr_recv = addr_recv
         self.addr_from = addr_from
+        self.nonce = nonce
 
         if timestamp is None:
             self.timestamp = int(time.time())
@@ -208,7 +209,8 @@ class Version(Message):
         return self.version.to_bytes(4, BYTEORDER) \
                + self.timestamp.to_bytes(8, BYTEORDER) \
                + bytes(self.addr_recv) \
-               + bytes(self.addr_from)
+               + bytes(self.addr_from) \
+               + self.nonce
 
     @classmethod
     def from_bytes(cls, data: bytes) -> Version:
@@ -216,8 +218,9 @@ class Version(Message):
         timestamp = int.from_bytes(data[4:12], BYTEORDER)
         addr_recv = NetworkAddress.from_bytes(data[12:34])
         addr_from = NetworkAddress.from_bytes(data[34:56])
+        nonce = data[56:64]
 
-        return cls(version, addr_recv, addr_from, timestamp)
+        return cls(version, addr_recv, addr_from, nonce, timestamp=timestamp)
 
 
 class Ping(Message):
