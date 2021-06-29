@@ -4,21 +4,21 @@ import random
 
 from twisted.internet import reactor, task
 from twisted.internet.endpoints import TCP4ServerEndpoint, TCP4ClientEndpoint
-from twisted.internet.protocol import Factory
-from twisted.internet.protocol import Protocol
 from twisted.logger import Logger
 from twisted.python.failure import Failure
 
 import defaults
-from models import Version, Message, VerAck, MessageError, GetAddr, NetworkAddress
+from models import NetworkAddress
 from protocols import IncomingPeerFactory, OutgoingPeerFactory
 
 
 class P2PClient:
     log = Logger()
 
-    def __init__(self, port: int, outgoing: int):
+    def __init__(self, ipv4_adr: str, port: int, outgoing: int):
         self.version = 0
+
+        self.address = NetworkAddress(ipv4_adr, port)
         self.port = port
         self.outgoing = outgoing
 
@@ -99,7 +99,6 @@ class P2PClient:
 
     def on_connect_success(self, result, peer: NetworkAddress):
         self.log.debug(f'successfully connected to {peer}')
-        #self.check_connections()
 
     def on_connect_error(self, reason: Failure, participant: NetworkAddress):
         self.log.info(f'connection to {participant} failed:\n' + str(reason.args[0]))
@@ -110,14 +109,14 @@ class P2PClient:
         Check the health of this client's connections and attempt to make new connections if the desired amount of
         outgoing connections is not reached.
         """
-        self.log.debug(f'Connected to {len(self.connections)} peers')
+        self.log.info(f'Connected to {len(self.connections)} peers')
         self.log.debug('I know of the following participants: \n' + '\n'.join(adr for adr in self.known_participants))
 
         if len(self.outgoing_connections) < self.outgoing:
             self.make_new_connection()
 
     def run(self):
-        task.LoopingCall(self.check_connections).start(30)
+        task.LoopingCall(self.check_connections).start(10)
 
         endpoint = TCP4ServerEndpoint(reactor, self.port)
         endpoint.listen(IncomingPeerFactory(self))
