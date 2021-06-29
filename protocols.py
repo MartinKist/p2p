@@ -153,15 +153,14 @@ class IncomingPeerProtocol(PeerProtocol):
     def handle_handshake(self, message: Message):
         if self.state == States.WAIT_FOR_VERSION:
             if isinstance(message, Version):
-                if self.client.version_compatible(message.version):
+                if self.client.version_compatible(message.version) and self.client.nonce != message.nonce:
                     self.transport.write(bytes(VerAck()))
-                    reactor.callLater(0.1, self.transport.write,
-                                      bytes(Version(self.client.version, self.peer_address, self.host_address)))
+                    reactor.callLater(0.1, self.transport.write, bytes(Version(self.client.version, self.peer_address, self.host_address, self.client.nonce)))
                     self.state = States.WAIT_FOR_VERACK
                 else:
-                    raise VersionError  # TODO: send reject message to peer
+                    self.transport.loseConnection()
             else:
-                raise ProtocolError     # TODO: add parameters
+                self.transport.loseConnection()
 
         elif self.state == States.WAIT_FOR_VERACK:
             if isinstance(message, VerAck):
@@ -169,7 +168,7 @@ class IncomingPeerProtocol(PeerProtocol):
                 self.log.info(f'Handshake with {self.peer_address} finished successfully.')
                 self.state = States.CON_ESTABLISHED
             else:
-                raise ProtocolError     # TODO: add parameters
+                self.transport.loseConnection()
 
 
 class OutgoingPeerProtocol(PeerProtocol):
@@ -178,7 +177,7 @@ class OutgoingPeerProtocol(PeerProtocol):
     def connectionMade(self):
         super().connectionMade()
         self.client.outgoing_cons.update({str(self.peer_address): self.peer_address})
-        self.transport.write(bytes(Version(self.client.version, self.peer_address, self.host_address)))
+        self.transport.write(bytes(Version(self.client.version, self.peer_address, self.host_address, self.client.nonce)))
         self.state = States.WAIT_FOR_VERACK
 
     def connectionLost(self, reason: Failure = ConnectionDone):
@@ -193,20 +192,19 @@ class OutgoingPeerProtocol(PeerProtocol):
                 self.log.info(f'Version acknowledged by {self.peer_address}.')
                 self.state = States.WAIT_FOR_VERSION
             else:
-                raise ProtocolError     # TODO: add parameters
+                self.transport.loseConnection()
 
         elif self.state == States.WAIT_FOR_VERSION:
             if isinstance(message, Version):
-                if self.client.version_compatible(message.version):
+                if self.client.version_compatible(message.version) and self.client.nonce != message.nonce:
                     self.transport.write(bytes(VerAck()))
                     self.log.info(f'Handshake with {self.peer_address} finished successfully.')
                     self.state = States.CON_ESTABLISHED
                     reactor.callLater(0.1, self.transport.write, bytes(GetAddr()))
                 else:
-                    raise VersionError
-                    # TODO: write reject Message to peer
+                    self.transport.loseConnection()
             else:
-                raise ProtocolError     # TODO: add parameters
+                self.transport.loseConnection()
 
 
 class PeerFactory(Factory):
