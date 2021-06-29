@@ -152,9 +152,11 @@ class Message(StructABC, ABC):
         return len(self.payload)
 
     def __bytes__(self) -> bytes:
+        nonce = random.randbytes(4)     # 4 Byte nonce to identify identical messages
         return self.message_type \
                + self.length.to_bytes(4, BYTEORDER) \
                + self.checksum \
+               + nonce \
                + self.payload
 
     @classmethod
@@ -163,7 +165,8 @@ class Message(StructABC, ABC):
         msg_type = data[:12].rstrip(b'\0')
         length = int.from_bytes(data[12:16], BYTEORDER)
         checksum = data[16:20]
-        payload = data[20:20 + length]
+        nonce = data[20:24]
+        payload = data[24:24 + length]
 
         if cls.calculate_checksum(payload) == checksum and msg_type in message_types:
             return message_types[msg_type].from_bytes(payload)
@@ -321,10 +324,31 @@ class GetAddr(HeaderOnly):
         return b'getaddr'.ljust(12, b'\0')
 
 
+class ChatMessage(Message):
+    def __init__(self, chat_message: Union[bytes, str]):
+        if isinstance(chat_message, bytes):
+            self.chat_message = chat_message.decode('utf-8')
+        else:
+            self.chat_message = chat_message
+
+    @property
+    def message_type(self) -> bytes:
+        return b'chat'.ljust(12, b'\0')
+
+    @property
+    def payload(self) -> bytes:
+        return self.chat_message.encode('utf-8')
+
+    @classmethod
+    def from_bytes(cls, data: bytes) -> Message:
+        return cls(data)
+
+
 message_types = {b'version': Version,
                  b'verack': VerAck,
                  b'ping': Ping,
                  b'pong': Pong,
                  b'addr': Addr,
                  b'getaddr': GetAddr,
-                 b'reject': Reject}
+                 b'reject': Reject,
+                 b'chat': ChatMessage}
