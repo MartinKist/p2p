@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 # (c) 2021 Martin Kistler
 import random
+from hashlib import sha256
 
-from twisted.internet import reactor, task
+from twisted.internet import reactor, task, stdio
 from twisted.internet.endpoints import TCP4ServerEndpoint, TCP4ClientEndpoint
 from twisted.logger import Logger
 from twisted.python.failure import Failure
 
 import defaults
-from models import NetworkAddress
-from protocols import IncomingPeerFactory, OutgoingPeerFactory, PeerProtocol
+from models import NetworkAddress, Message, ChatMessage
+from protocols import IncomingPeerFactory, OutgoingPeerFactory, PeerProtocol, UserInput
 
 
 class P2PClient:
@@ -24,9 +25,10 @@ class P2PClient:
 
         # These dicts have the form {'0.0.0.0:1111': NetworkAddress}
         self.default_peers = defaults.PEERS
-        self.known_participants = self.default_peers.copy()    # participants of the network this client knows about
+        self.known_participants = {}    # participants of the network this client knows about
         self.connections = {}       # direct connections this client maintains
 
+        self.received_broadcasts = []   # hashes of received broadcast messages
         self.nonce = random.randbytes(8)    # random nonce used to detect connections to self
 
     def version_compatible(self, peer_version: int) -> bool:
@@ -62,12 +64,12 @@ class P2PClient:
         Try to establish a new outgoing connection to a random known network participant.
         """
         for addr, netw_addr in self.known_participants.items():
-            if addr not in self.connections:
+            if addr not in self.connections and addr != str(self.address):
                 self.connect(netw_addr)
                 break
         else:
             for addr, netw_addr in self.default_peers.items():
-                if addr not in self.connections:
+                if addr not in self.connections and addr != str(self.address):
                     self.connect(netw_addr)
                     break
 
@@ -87,7 +89,7 @@ class P2PClient:
         self.log.debug(f'successfully connected to {peer}')
 
     def on_connect_error(self, reason: Failure, participant: NetworkAddress):
-        self.log.info(f'connection to {participant} failed:\n' + str(reason.args[0]))
+        self.log.debug(f'connection to {participant} failed:\n' + str(reason.args[0]))
         self.remove_participant(participant)
 
     def check_connections(self):
@@ -95,14 +97,28 @@ class P2PClient:
         Check the health of this client's connections and attempt to make new connections if the desired amount of
         outgoing connections is not reached.
         """
-        self.log.info(f'Connected to {len(self.connections)} peers')
+        self.log.debug(f'Connected to {len(self.connections)} peers:\n' + '\n'.join(self.connections))
         self.log.debug('I know of the following participants: \n' + '\n'.join(adr for adr in self.known_participants))
 
         if len(self.connections) < self.outgoing:
             self.make_new_connection()
 
+    def broadcast(self, message: Message, sender: NetworkAddress):
+        msg_hash = sha256(bytes(message)).digest()
+        if msg_hash not in self.received_broadcasts:
+            self.received_broadcasts.append(msg_hash)
+            for addr, connection in self.connections.items():
+                if str(sender) != addr:
+                    connection.forward_message(message)
+
+    def send_chat(self, data: bytes):
+        msg = ChatMessage(data)
+        self.broadcast(msg, self.address)
+
     def run(self):
         task.LoopingCall(self.check_connections).start(10)
+
+        stdio.StandardIO(UserInput(self))
 
         endpoint = TCP4ServerEndpoint(reactor, self.port)
         endpoint.listen(IncomingPeerFactory(self))
