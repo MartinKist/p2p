@@ -9,7 +9,7 @@ from twisted.python.failure import Failure
 
 import defaults
 from models import NetworkAddress
-from protocols import IncomingPeerFactory, OutgoingPeerFactory
+from protocols import IncomingPeerFactory, OutgoingPeerFactory, PeerProtocol
 
 
 class P2PClient:
@@ -25,16 +25,9 @@ class P2PClient:
         # These dicts have the form {'0.0.0.0:1111': NetworkAddress}
         self.default_peers = defaults.PEERS
         self.known_participants = self.default_peers.copy()    # participants of the network this client knows about
-        self.outgoing_connections = {}     # connections made by this client to another client
-        self.incoming_connections = {}     # connections made by another client to this client
+        self.connections = {}       # direct connections this client maintains
 
         self.nonce = random.randbytes(8)    # random nonce used to detect connections to self
-
-    @property
-    def connections(self) -> dict:
-        cons = self.outgoing_connections.copy()
-        cons.update(self.incoming_connections)
-        return cons
 
     def version_compatible(self, peer_version: int) -> bool:
         """
@@ -57,31 +50,24 @@ class P2PClient:
         if str(participant) in self.known_participants:
             del self.known_participants[str(participant)]
 
-    def add_incoming_connection(self, connection: NetworkAddress):
-        self.incoming_connections.update({str(connection): connection})
+    def add_connection(self, connection: PeerProtocol):
+        self.connections.update({str(connection.peer): connection})
 
-    def remove_incoming_connection(self, connection: NetworkAddress):
-        if str(connection) in self.incoming_connections:
-            del self.incoming_connections[str(connection)]
-
-    def add_outgoing_connection(self, connection: NetworkAddress):
-        self.outgoing_connections.update({str(connection): connection})
-
-    def remove_outgoing_connection(self, connection: NetworkAddress):
-        if str(connection) in self.outgoing_connections:
-            del self.outgoing_connections[str(connection)]
+    def remove_connection(self, connection: PeerProtocol):
+        if str(connection.peer) in self.connections:
+            del self.connections[str(connection.peer)]
 
     def make_new_connection(self):
         """
         Try to establish a new outgoing connection to a random known network participant.
         """
         for addr, netw_addr in self.known_participants.items():
-            if addr not in self.outgoing_connections:
+            if addr not in self.connections:
                 self.connect(netw_addr)
                 break
         else:
             for addr, netw_addr in self.default_peers.items():
-                if addr not in self.outgoing_connections:
+                if addr not in self.connections:
                     self.connect(netw_addr)
                     break
 
@@ -112,7 +98,7 @@ class P2PClient:
         self.log.info(f'Connected to {len(self.connections)} peers')
         self.log.debug('I know of the following participants: \n' + '\n'.join(adr for adr in self.known_participants))
 
-        if len(self.outgoing_connections) < self.outgoing:
+        if len(self.connections) < self.outgoing:
             self.make_new_connection()
 
     def run(self):
