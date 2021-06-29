@@ -98,14 +98,14 @@ class NetworkAddress(StructABC):
         else:
             self.timestamp = timestamp
 
-        if isinstance(address, str):
-            self.address = bytes(int(val) for val in address.split('.'))
+        if isinstance(address, bytes):
+            self.address = ".".join(str(val) for val in self.address)
         else:
             self.address = self.address
 
     def __bytes__(self) -> bytes:
         return self.timestamp.to_bytes(4, BYTEORDER) \
-               + self.address \
+               + bytes(int(val) for val in self.address.split('.')) \
                + self.port.to_bytes(2, BYTEORDER)
 
     @classmethod
@@ -117,7 +117,7 @@ class NetworkAddress(StructABC):
         return cls(address, port, timestamp)
 
     def __str__(self):
-        return ".".join(str(val) for val in self.address)
+        return self.address + ':' + str(self.port)
 
 
 class Message(StructABC, ABC):
