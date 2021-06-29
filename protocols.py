@@ -30,26 +30,30 @@ class PeerProtocol(Protocol, ABC):
     def __init__(self, client: 'P2PClient'):
         self.client = client
         self.state = States.INIT
+        self._peer = None
 
     @property
-    def peer_address(self) -> NetworkAddress:
-        peer = self.transport.getPeer()
-        return NetworkAddress(peer.host, peer.port)
+    def peer(self) -> NetworkAddress:
+        if self._peer is None:
+            peer = self.transport.getPeer()
+            return NetworkAddress(peer.host, peer.port)
+        else:
+            return self._peer
 
     def connectionLost(self, reason: Failure = ConnectionDone):
-        self.log.debug(f'Connection to Peer {self.peer_address} lost:\n {reason}')
-        self.client.remove_participant(self.peer_address)
+        self.log.info(f'Connection to Peer {self.peer} lost:\n {reason}')
+        self.client.remove_connection(self)
 
     def dataReceived(self, data: bytes):
         try:
             message = Message.from_bytes(data)
         except MessageError:
-            self.log.failure(f'Invalid message received from {self.peer_address}.')
+            self.log.failure(f'Invalid message received from {self.peer}.')
             self.transport.loseConnection()
             return
 
         self.log.debug(f'Current state is {self.state}.')
-        self.log.debug(f'Message received from {self.peer_address}:\n{message}')
+        self.log.debug(f'Message received from {self.peer}:\n{message}')
 
         if isinstance(message, Version):
             self.handle_version(message)
@@ -70,24 +74,24 @@ class PeerProtocol(Protocol, ABC):
         What has to be done, when a new connection has been made depends on who initiated it.
         Subclasses must implement this.
         """
-        self.log.debug(f'Connected to {self.peer_address}.')
+        self.log.debug(f'Connected to {self.peer}.')
 
     def handle_getadr(self, getadr: GetAddr):
-        self.log.debug(f'Address request received from {self.peer_address}.')
+        self.log.debug(f'Address request received from {self.peer}.')
         self.transport.write(bytes(Addr(list(self.client.known_participants.values()))))
 
     def handle_addr(self, addr: Addr):
-        self.log.debug(f'Address information received from {self.peer_address}.')
+        self.log.debug(f'Address information received from {self.peer}.')
         map(self.client.add_participant, addr.addresses)
 
     def handle_ping(self, ping: Ping):
-        self.log.debug(f'Ping message received from {self.peer_address}.')
+        self.log.debug(f'Ping message received from {self.peer}.')
 
     def handle_pong(self, pong: Pong):
-        self.log.debug(f'Pong message received from {self.peer_address}.')
+        self.log.debug(f'Pong message received from {self.peer}.')
 
     def forward_message(self, message: Message):
-        self.log.debug(f'Forwarding message to {self.peer_address}')
+        self.log.debug(f'Forwarding message to {self.peer}')
         self.transport.write(bytes(message))
 
     @abstractmethod
@@ -96,6 +100,8 @@ class PeerProtocol(Protocol, ABC):
             if self.client.version_compatible(version.version) and self.client.nonce != version.nonce:
                 self.transport.write(bytes(VerAck()))
                 self.client.add_participant(version.addr_from)
+                self.client.add_connection(self)
+                self._peer = version.addr_from
                 return
 
         self.transport.loseConnection()
@@ -103,7 +109,7 @@ class PeerProtocol(Protocol, ABC):
     @abstractmethod
     def handle_verack(self, verack: VerAck):
         if self.state == States.WAIT_FOR_VERACK:
-            self.log.debug(f'Version acknowledged by {self.peer_address}.')
+            self.log.debug(f'Version acknowledged by {self.peer}.')
             return
 
         self.transport.loseConnection()
@@ -113,25 +119,19 @@ class IncomingPeerProtocol(PeerProtocol):
     def connectionMade(self):
         super().connectionMade()
 
-        self.client.add_incoming_connection(self.peer_address)
         self.state = States.WAIT_FOR_VERSION
-
-    def connectionLost(self, reason: Failure = ConnectionDone):
-        super().connectionLost(reason)
-
-        self.client.remove_incoming_connection(self.peer_address)
 
     def handle_version(self, version: Version):
         super().handle_version(version)
 
         reactor.callLater(0.1, self.transport.write,
-                          bytes(Version(self.client.version, self.peer_address, self.client.address, self.client.nonce)))
+                          bytes(Version(self.client.version, version.addr_from, self.client.address, self.client.nonce)))
         self.state = States.WAIT_FOR_VERACK
 
     def handle_verack(self, verack: VerAck):
         super().handle_verack(verack)
 
-        self.log.info(f'Connection to {self.peer_address} established.')
+        self.log.info(f'Connection to {self.peer} established.')
         self.state = States.CON_ESTABLISHED
 
 
@@ -141,19 +141,13 @@ class OutgoingPeerProtocol(PeerProtocol):
     def connectionMade(self):
         super().connectionMade()
 
-        self.client.add_outgoing_connection(self.peer_address)
-        self.transport.write(bytes(Version(self.client.version, self.peer_address, self.client.address, self.client.nonce)))
+        self.transport.write(bytes(Version(self.client.version, self.peer, self.client.address, self.client.nonce)))
         self.state = States.WAIT_FOR_VERACK
-
-    def connectionLost(self, reason: Failure = ConnectionDone):
-        super().connectionLost(reason)
-
-        self.client.remove_outgoing_connection(self.peer_address)
 
     def handle_version(self, version: Version):
         super().handle_version(version)
 
-        self.log.info(f'Connection to {self.peer_address} established.')
+        self.log.info(f'Connection to {self.peer} established.')
         self.state = States.CON_ESTABLISHED
 
         reactor.callLater(0.1, self.transport.write, bytes(GetAddr()))
