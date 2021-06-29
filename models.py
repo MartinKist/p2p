@@ -101,11 +101,16 @@ class NetworkAddress(StructABC):
         if isinstance(address, bytes):
             self.address = ".".join(str(val) for val in self.address)
         else:
-            self.address = self.address
+            self.address = self.address.strip()
+
+    @property
+    def addr_bytes(self):
+        values = self.address.split('.')
+        return bytes(map(int, values))
 
     def __bytes__(self) -> bytes:
         return self.timestamp.to_bytes(4, BYTEORDER) \
-               + bytes(int(val) for val in self.address.split('.')) \
+               + self.addr_bytes \
                + self.port.to_bytes(2, BYTEORDER)
 
     @classmethod
@@ -216,9 +221,9 @@ class Version(Message):
     def from_bytes(cls, data: bytes) -> Version:
         version = int.from_bytes(data[:4], BYTEORDER)
         timestamp = int.from_bytes(data[4:12], BYTEORDER)
-        addr_recv = NetworkAddress.from_bytes(data[12:34])
-        addr_from = NetworkAddress.from_bytes(data[34:56])
-        nonce = data[56:64]
+        addr_recv = NetworkAddress.from_bytes(data[12:22])
+        addr_from = NetworkAddress.from_bytes(data[22:32])
+        nonce = data[32:40]
 
         return cls(version, addr_recv, addr_from, nonce, timestamp=timestamp)
 
