@@ -304,7 +304,7 @@ class Addr(Message):
     def from_bytes(cls, data: bytes) -> Message:
         count_len = VarInt.get_length(data[0])
         count = int(VarInt(data[:count_len]))
-        addresses = [NetworkAddress.from_bytes(data[count_len + x * 22: count_len + x * 22 + 22]) for x in range(count)]
+        addresses = [NetworkAddress.from_bytes(data[count_len + x * 10: count_len + x * 10 + 10]) for x in range(count)]
 
         return cls(addresses)
 
