@@ -52,8 +52,7 @@ class PeerProtocol(Protocol, ABC):
             self.transport.loseConnection()
             return
 
-        self.log.debug(f'Current state is {self.state}.')
-        self.log.debug(f'Message received from {self.peer}:\n{message}')
+        self.log.debug(f'Message received from {self.peer}')
 
         if isinstance(message, Version):
             self.handle_version(message)
