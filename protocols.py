@@ -47,15 +47,13 @@ class PeerProtocol(Protocol, ABC):
 
     @property
     def peer_address(self) -> NetworkAddress:
-        peer_address = bytes(int(val) for val in self.transport.getPeer().host.split('.'))
-        peer_port = self.transport.getPeer().port
-        return NetworkAddress(peer_address, peer_port)
+        peer = self.transport.getPeer()
+        return NetworkAddress(peer.host, peer.port)
 
     @property
     def host_address(self) -> NetworkAddress:
-        host_address = bytes(int(val) for val in self.transport.getHost().host.split('.'))
-        host_port = self.transport.getHost().port
-        return NetworkAddress(host_address, host_port)
+        host = self.transport.getHost()
+        return NetworkAddress(host.host, host.port)
 
     def connectionLost(self, reason: Failure = ConnectionDone):
         self.log.info(f'Connection to Peer {self.peer_address} lost:\n {reason}')
@@ -133,13 +131,24 @@ class PeerProtocol(Protocol, ABC):
         self.log.info(f'Reject message received from {self.peer_address}.')
 
     def forward_message(self, message: Message):
-        pass
+        self.log.info(f'Forwarding message')
+        self.transport.write(bytes(message))
+
+
 class IncomingPeerProtocol(PeerProtocol):
     log = Logger()
 
     def connectionMade(self):
         super().connectionMade()
+
+        self.client.incoming_cons.update({str(self.peer_address): self.peer_address})
         self.state = States.WAIT_FOR_VERSION
+
+    def connectionLost(self, reason: Failure = ConnectionDone):
+        super().connectionLost(reason)
+
+        if str(self.peer_address) in self.client.incoming_cons:
+            del self.client.incoming_cons[str(self.peer_address)]
 
     def handle_handshake(self, message: Message):
         if self.state == States.WAIT_FOR_VERSION:
@@ -168,8 +177,15 @@ class OutgoingPeerProtocol(PeerProtocol):
 
     def connectionMade(self):
         super().connectionMade()
+        self.client.outgoing_cons.update({str(self.peer_address): self.peer_address})
         self.transport.write(bytes(Version(self.client.version, self.peer_address, self.host_address)))
         self.state = States.WAIT_FOR_VERACK
+
+    def connectionLost(self, reason: Failure = ConnectionDone):
+        super().connectionLost(reason)
+
+        if str(self.peer_address) in self.client.outgoing_cons:
+            del self.client.outgoing_cons[str(self.peer_address)]
 
     def handle_handshake(self, message: Message):
         if self.state == States.WAIT_FOR_VERACK:
