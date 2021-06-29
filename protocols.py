@@ -3,15 +3,17 @@
 
 from abc import ABC, abstractmethod
 from enum import Enum
+from os import linesep
 
 from twisted.internet import reactor
 from twisted.internet.error import ConnectionDone
-from twisted.internet.protocol import Factory
-from twisted.internet.protocol import Protocol
+from twisted.internet.protocol import Factory, Protocol
 from twisted.logger import Logger
+from twisted.protocols import basic
+from twisted.protocols.basic import LineReceiver
 from twisted.python.failure import Failure
 
-from models import Version, Message, VerAck, MessageError, GetAddr, NetworkAddress, Addr, Ping, Pong
+from models import Version, Message, VerAck, MessageError, GetAddr, NetworkAddress, Addr, Ping, Pong, ChatMessage
 
 
 class States(Enum):
@@ -41,7 +43,9 @@ class PeerProtocol(Protocol, ABC):
             return self._peer
 
     def connectionLost(self, reason: Failure = ConnectionDone):
-        self.log.info(f'Connection to Peer {self.peer} lost:\n {reason}')
+        self.log.info(f'connection to Peer {self.peer} lost')
+        self.log.debug('reason:' + str(reason))
+
         self.client.remove_connection(self)
 
     def dataReceived(self, data: bytes):
@@ -66,6 +70,12 @@ class PeerProtocol(Protocol, ABC):
             self.handle_ping(message)
         elif isinstance(message, Pong):
             self.handle_pong(message)
+        elif isinstance(message, ChatMessage):
+            self.handle_chat_message(message)
+
+    def handle_chat_message(self, chat_message: ChatMessage):
+        print(str(self.peer) + ' said ' + chat_message.chat_message)
+        self.client.broadcast(chat_message, self.peer)
 
     @abstractmethod
     def connectionMade(self):
@@ -99,8 +109,8 @@ class PeerProtocol(Protocol, ABC):
             if self.client.version_compatible(version.version) and self.client.nonce != version.nonce:
                 self.transport.write(bytes(VerAck()))
                 self.client.add_participant(version.addr_from)
-                self.client.add_connection(self)
                 self._peer = version.addr_from
+                self.client.add_connection(self)
                 return
 
         self.transport.loseConnection()
@@ -155,6 +165,20 @@ class OutgoingPeerProtocol(PeerProtocol):
         super().handle_verack(verack)
 
         self.state = States.WAIT_FOR_VERSION
+
+
+class UserInput(basic.LineReceiver):
+    delimiter = linesep.encode('utf-8')
+
+    def __init__(self, client):
+        self.client = client
+
+    def connectionMade(self):
+        self.transport.write(b">>> ")
+
+    def lineReceived(self, line):
+        self.client.send_chat(line)
+        self.transport.write(b">>> ")
 
 
 class PeerFactory(Factory):
