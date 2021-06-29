@@ -99,7 +99,7 @@ class P2PClient:
 
     def on_connect_success(self, result, peer: NetworkAddress):
         self.log.debug(f'successfully connected to {peer}')
-        self.check_connections()
+        #self.check_connections()
 
     def on_connect_error(self, reason: Failure, participant: NetworkAddress):
         self.log.info(f'connection to {participant} failed:\n' + str(reason.args[0]))
