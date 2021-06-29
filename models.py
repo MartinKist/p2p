@@ -23,23 +23,6 @@ class MessageError(Exception):
         # TODO: add description parameter
 
 
-class StructABC(ABC):
-    @abstractmethod
-    def __bytes__(self) -> bytes:
-        return NotImplemented
-
-    @classmethod
-    @abstractmethod
-    def from_bytes(cls, data: bytes):
-        return NotImplemented
-
-    def __eq__(self, other):
-        return bytes(self) == bytes(other)
-
-    def __str__(self):
-        return str(bytes(self).hex(' '))
-
-
 class VarInt:
     def __init__(self, value: Union[int, bytes]):
         if isinstance(value, int):
@@ -86,6 +69,55 @@ class VarInt:
 
     def __int__(self) -> int:
         return self.value
+
+
+class StructABC(ABC):
+    @abstractmethod
+    def __bytes__(self) -> bytes:
+        return NotImplemented
+
+    @classmethod
+    @abstractmethod
+    def from_bytes(cls, data: bytes):
+        return NotImplemented
+
+    def __eq__(self, other):
+        return bytes(self) == bytes(other)
+
+    def __str__(self):
+        return str(bytes(self).hex(' '))
+
+
+class NetworkAddress(StructABC):
+    def __init__(self, address: Union[bytes, str], port: int, timestamp: int = None):
+        self.address = address
+        self.port = port
+
+        if timestamp is None:
+            self.timestamp = int(time.time())
+        else:
+            self.timestamp = timestamp
+
+        if isinstance(address, str):
+            self.address = bytes(int(val) for val in address.split('.'))
+        else:
+            self.address = self.address
+
+    def __bytes__(self) -> bytes:
+        return self.timestamp.to_bytes(4, BYTEORDER) \
+               + self.address \
+               + self.port.to_bytes(2, BYTEORDER)
+
+    @classmethod
+    def from_bytes(cls, data: bytes) -> NetworkAddress:
+        timestamp = int.from_bytes(data[:4], BYTEORDER)
+        address = data[4:8]
+        port = int.from_bytes(data[8:10], BYTEORDER)
+
+        return cls(address, port, timestamp)
+
+    def __str__(self):
+        return ".".join(str(val) for val in self.address)
 
 
 class Message(StructABC, ABC):
@@ -141,43 +173,19 @@ class Message(StructABC, ABC):
                + str(self.payload)
 
 
-class NetworkAddress(StructABC):
-    def __init__(self, address: bytes, port: int, timestamp: int = None):
-        self.address = address
-        self.port = port
+class HeaderOnly(Message, ABC):
+    @property
+    @abstractmethod
+    def message_type(self) -> bytes:
+        return NotImplemented
 
-        if timestamp is None:
-            self.timestamp = int(time.time())
-        else:
-            self.timestamp = timestamp
-
-        # if address is 4 bytes long it is an IPv4-address
-        if len(self.address) == 4:
-            self.address = b'\0' * 10 + b'\xff' * 2 + self.address
-            self.ipversion = 4
-        else:
-            self.ipversion = 6
-
-    def __bytes__(self) -> bytes:
-        return self.timestamp.to_bytes(4, BYTEORDER) \
-               + self.address \
-               + self.port.to_bytes(2, BYTEORDER)
+    @property
+    def payload(self) -> bytes:
+        return b''
 
     @classmethod
-    def from_bytes(cls, data: bytes) -> NetworkAddress:
-        timestamp = int.from_bytes(data[:4], BYTEORDER)
-        address = data[4:20]
-        port = int.from_bytes(data[20:22], BYTEORDER)
-
-        return cls(address, port, timestamp)
-
-    def __str__(self):
-        if self.ipversion == 4:
-            values = self.address[-4:]
-        else:
-            values = self.address
-
-        return f'{".".join(str(val) for val in values)}:{self.port}'
+    def from_bytes(cls, data: bytes):
+        return cls()
 
 
 class Version(Message):
@@ -252,25 +260,19 @@ class Pong(Message):
         return cls(data)
 
 
-class HeaderOnly(Message, ABC):
+class Reject(Message):
+    # TODO
     @property
-    @abstractmethod
     def message_type(self) -> bytes:
-        return NotImplemented
+        return b'reject'.ljust(12, b'\0')
 
     @property
     def payload(self) -> bytes:
-        return b''
+        pass
 
     @classmethod
-    def from_bytes(cls, data: bytes):
-        return cls()
-
-
-class VerAck(HeaderOnly):
-    @property
-    def message_type(self) -> bytes:
-        return b'verack'.ljust(12, b'\0')
+    def from_bytes(cls, data: bytes) -> Message:
+        pass
 
 
 class Addr(Message):
@@ -299,25 +301,16 @@ class Addr(Message):
         return cls(addresses)
 
 
+class VerAck(HeaderOnly):
+    @property
+    def message_type(self) -> bytes:
+        return b'verack'.ljust(12, b'\0')
+
+
 class GetAddr(HeaderOnly):
     @property
     def message_type(self) -> bytes:
         return b'getaddr'.ljust(12, b'\0')
-
-
-class Reject(Message):
-
-    @property
-    def message_type(self) -> bytes:
-        return b'reject'.ljust(12, b'\0')
-
-    @property
-    def payload(self) -> bytes:
-        pass
-
-    @classmethod
-    def from_bytes(cls, data: bytes) -> Message:
-        pass
 
 
 message_types = {b'version': Version,
