@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # (c) 2021 Martin Kistler
+import random
 
 from twisted.internet import reactor, task
 from twisted.internet.endpoints import TCP4ServerEndpoint, TCP4ClientEndpoint
@@ -26,6 +27,8 @@ class P2PClient:
         self.known_participants = self.default_peers.copy()    # participants of the network this client knows about
         self.outgoing_cons = {}     # connections made by this client to another client
         self.incoming_cons = {}     # connections made by another client to this client
+
+        self.nonce = random.randbytes(8)    # random nonce used to detect connections to self
 
     @property
     def connections(self) -> dict:
@@ -75,11 +78,15 @@ class P2PClient:
         """
         endpoint = TCP4ClientEndpoint(reactor, str(peer), peer.port)
         attempt = endpoint.connect(OutgoingPeerFactory(self))
-        attempt.addErrback(self.handle_connect_errback, peer)
+        attempt.addCallback(self.on_connect_success)
+        attempt.addErrback(self.on_connect_error, peer)
+        reactor.callLater(30, attempt.cancel)   # Timeout
 
-    def handle_connect_errback(self, reason: Failure, format, netw_addr: NetworkAddress):
-        # TODO
-        self.log.failure()
+    def on_connect_success(self):
+        self.check_connections()
+
+    def on_connect_error(self, reason: Failure, netw_addr: NetworkAddress):
+        self.log.info('connection failed:\n' + str(reason))
         if netw_addr in self.known_participants:
             del self.known_participants[str(netw_addr)]
 
