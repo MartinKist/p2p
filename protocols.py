@@ -161,7 +161,6 @@ class OutgoingPeerProtocol(PeerProtocol):
 
         self.log.info(f'Connection to {self.peer_address} established.')
         self.state = States.CON_ESTABLISHED
-        self.on_con_established()
 
         reactor.callLater(0.1, self.transport.write, bytes(GetAddr()))
 
