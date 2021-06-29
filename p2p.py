@@ -23,7 +23,11 @@ args = parser.parse_args()
 # set up logging
 @provider(ILogObserver)
 def simpleObserver(event):
-    print(eventAsText(event))
+    if event['log_level'].name == 'debug':
+        if args.debug:
+            print(eventAsText(event))
+    else:
+        print(eventAsText(event))
 
 
 globalLogPublisher.addObserver(simpleObserver)
