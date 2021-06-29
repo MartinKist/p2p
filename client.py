@@ -22,18 +22,18 @@ class P2PClient:
         self.port = port
         self.outgoing = outgoing
 
-        # These dicts have the form {str(NetworkAddress): NetworkAddress}
+        # These dicts have the form {'0.0.0.0:1111': NetworkAddress}
         self.default_peers = defaults.PEERS
         self.known_participants = self.default_peers.copy()    # participants of the network this client knows about
-        self.outgoing_cons = {}     # connections made by this client to another client
-        self.incoming_cons = {}     # connections made by another client to this client
+        self.outgoing_connections = {}     # connections made by this client to another client
+        self.incoming_connections = {}     # connections made by another client to this client
 
         self.nonce = random.randbytes(8)    # random nonce used to detect connections to self
 
     @property
     def connections(self) -> dict:
-        cons = self.outgoing_cons.copy()
-        cons.update(self.incoming_cons)
+        cons = self.outgoing_connections.copy()
+        cons.update(self.incoming_connections)
         return cons
 
     def version_compatible(self, peer_version: int) -> bool:
@@ -44,30 +44,44 @@ class P2PClient:
 
     def add_participant(self, participant: NetworkAddress):
         """
-        Adds a new network participant to this client's record of known network participants.
+        Add a new network participant to this client's record of known network participants.
         :param participant: The NetworkAddress representing the participant to add.
         """
         self.known_participants.update({str(participant): participant})
 
     def remove_participant(self, participant: NetworkAddress):
         """
-        Removes a network participant from this client's record of known network participants.
+        Remove a network participant from this client's record of known network participants.
         :param participant: The NetworkAddress representing the participant to remove.
         """
-        if participant.address in self.known_participants:
+        if str(participant) in self.known_participants:
             del self.known_participants[str(participant)]
+
+    def add_incoming_connection(self, connection: NetworkAddress):
+        self.incoming_connections.update({str(connection): connection})
+
+    def remove_incoming_connection(self, connection: NetworkAddress):
+        if str(connection) in self.known_participants:
+            del self.incoming_connections[str(connection)]
+
+    def add_outgoing_connection(self, connection: NetworkAddress):
+        self.outgoing_connections.update({str(connection): connection})
+
+    def remove_outgoing_connection(self, connection: NetworkAddress):
+        if str(connection) in self.known_participants:
+            del self.outgoing_connections[str(connection)]
 
     def make_new_connection(self):
         """
         Try to establish a new outgoing connection to a random known network participant.
         """
         for addr, netw_addr in self.known_participants.items():
-            if addr not in self.outgoing_cons:
+            if addr not in self.outgoing_connections:
                 self.connect(netw_addr)
                 break
         else:
             for addr, netw_addr in self.default_peers.items():
-                if addr not in self.outgoing_cons:
+                if addr not in self.outgoing_connections:
                     self.connect(netw_addr)
                     break
 
@@ -76,8 +90,9 @@ class P2PClient:
         Try to connect to a new peer.
         :param peer: The NetworkAddress representing the peer.
         """
-        endpoint = TCP4ClientEndpoint(reactor, str(peer), peer.port)
+        endpoint = TCP4ClientEndpoint(reactor, peer.address, peer.port)
         attempt = endpoint.connect(OutgoingPeerFactory(self))
+
         attempt.addCallback(self.on_connect_success)
         attempt.addErrback(self.on_connect_error, peer)
         reactor.callLater(30, attempt.cancel)   # Timeout
@@ -85,10 +100,9 @@ class P2PClient:
     def on_connect_success(self):
         self.check_connections()
 
-    def on_connect_error(self, reason: Failure, netw_addr: NetworkAddress):
-        self.log.info('connection failed:\n' + str(reason))
-        if netw_addr in self.known_participants:
-            del self.known_participants[str(netw_addr)]
+    def on_connect_error(self, reason: Failure, participant: NetworkAddress):
+        self.log.info(f'connection to {participant} failed:\n' + str(reason))
+        self.remove_participant(participant)
 
     def check_connections(self):
         """
@@ -96,7 +110,9 @@ class P2PClient:
         outgoing connections is not reached.
         """
         self.log.info(f'Connected to {len(self.connections)} peers')
-        if len(self.outgoing_cons) < self.outgoing:
+        self.log.info('I know the following addresses: \n' + '\n'.join(adr for adr in self.known_participants))
+
+        if len(self.outgoing_connections) < self.outgoing:
             self.make_new_connection()
 
     def run(self):
