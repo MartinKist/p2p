@@ -36,11 +36,6 @@ class PeerProtocol(Protocol, ABC):
         peer = self.transport.getPeer()
         return NetworkAddress(peer.host, peer.port)
 
-    @property
-    def host_address(self) -> NetworkAddress:
-        host = self.transport.getHost()
-        return NetworkAddress(host.host, self.client.port)
-
     def connectionLost(self, reason: Failure = ConnectionDone):
         self.log.debug(f'Connection to Peer {self.peer_address} lost:\n {reason}')
         self.client.remove_participant(self.peer_address)
@@ -75,7 +70,7 @@ class PeerProtocol(Protocol, ABC):
         What has to be done, when a new connection has been made depends on who initiated it.
         Subclasses must implement this.
         """
-        self.log.info(f'Connected to {self.peer_address}.')
+        self.log.debug(f'Connected to {self.peer_address}.')
 
     def handle_getadr(self, getadr: GetAddr):
         self.log.debug(f'Address request received from {self.peer_address}.')
@@ -101,7 +96,6 @@ class PeerProtocol(Protocol, ABC):
             if self.client.version_compatible(version.version) and self.client.nonce != version.nonce:
                 self.transport.write(bytes(VerAck()))
                 self.client.add_participant(version.addr_from)
-                self.client.add_participant(self.host_address)
                 return
 
         self.transport.loseConnection()
@@ -131,7 +125,7 @@ class IncomingPeerProtocol(PeerProtocol):
         super().handle_version(version)
 
         reactor.callLater(0.1, self.transport.write,
-                          bytes(Version(self.client.version, self.peer_address, self.host_address, self.client.nonce)))
+                          bytes(Version(self.client.version, self.peer_address, self.client.address, self.client.nonce)))
         self.state = States.WAIT_FOR_VERACK
 
     def handle_verack(self, verack: VerAck):
@@ -148,7 +142,7 @@ class OutgoingPeerProtocol(PeerProtocol):
         super().connectionMade()
 
         self.client.add_outgoing_connection(self.peer_address)
-        self.transport.write(bytes(Version(self.client.version, self.peer_address, self.host_address, self.client.nonce)))
+        self.transport.write(bytes(Version(self.client.version, self.peer_address, self.client.address, self.client.nonce)))
         self.state = States.WAIT_FOR_VERACK
 
     def connectionLost(self, reason: Failure = ConnectionDone):
