@@ -36,10 +36,10 @@ class PeerProtocol(Protocol, ABC):
         peer = self.transport.getPeer()
         return NetworkAddress(peer.host, peer.port)
 
-    #@property
-    #def host_address(self) -> NetworkAddress:
-    #    host = self.transport.getHost()
-    #    return NetworkAddress(host.host, host.port)
+    @property
+    def host_address(self) -> NetworkAddress:
+        host = self.transport.getHost()
+        return NetworkAddress(host.host, host.port)
 
     def connectionLost(self, reason: Failure = ConnectionDone):
         self.log.info(f'Connection to Peer {self.peer_address} lost:\n {reason}')
