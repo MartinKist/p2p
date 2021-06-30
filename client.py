@@ -105,14 +105,15 @@ class P2PClient:
 
     def broadcast(self, message: Message, sender: NetworkAddress):
         msg_hash = sha256(bytes(message)).digest()
+        self.log.debug(msg_hash)
         if msg_hash not in self.received_broadcasts:
             self.received_broadcasts.append(msg_hash)
             for addr, connection in self.connections.items():
                 if str(sender) != addr:
                     connection.forward_message(message)
 
-    def send_chat(self, data: bytes):
-        msg = ChatMessage(data)
+    def send_chat(self, line: bytes):
+        msg = ChatMessage(self.address, line)
         self.broadcast(msg, self.address)
 
     def run(self):
