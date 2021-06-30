@@ -74,7 +74,7 @@ class PeerProtocol(Protocol, ABC):
             self.handle_chat_message(message)
 
     def handle_chat_message(self, chat_message: ChatMessage):
-        print(str(self.peer) + ' said ' + chat_message.chat_message)
+        print(f'{chat_message.sender} said: {chat_message.chat_message}')
         self.client.broadcast(chat_message, self.peer)
 
     @abstractmethod
