@@ -108,8 +108,8 @@ class P2PClient:
             if isinstance(message, ChatMessage) and sender != self.address:
                 self.print_chat(message)
             for addr, connection in self.connections.items():
-                if str(sender) != addr:
-                    connection.forward_message(message)
+                # if str(sender) != addr:
+                connection.forward_message(message)
 
     def msg_is_known(self, message: Message) -> bool:
         msg_hash = sha256(bytes(message)).digest()
