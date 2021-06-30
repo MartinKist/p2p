@@ -325,7 +325,9 @@ class GetAddr(HeaderOnly):
 
 
 class ChatMessage(Message):
-    def __init__(self, chat_message: Union[bytes, str]):
+    def __init__(self, sender: NetworkAddress, chat_message: Union[bytes, str]):
+        self.sender = sender
+
         if isinstance(chat_message, bytes):
             self.chat_message = chat_message.decode('utf-8')
         else:
@@ -337,11 +339,13 @@ class ChatMessage(Message):
 
     @property
     def payload(self) -> bytes:
-        return self.chat_message.encode('utf-8')
+        return bytes(self.sender) + self.chat_message.encode('utf-8')
 
     @classmethod
     def from_bytes(cls, data: bytes) -> Message:
-        return cls(data)
+        sender = NetworkAddress.from_bytes(data[:10])
+        chat_message = data[10:]
+        return cls(sender, chat_message)
 
 
 message_types = {b'version': Version,
