@@ -104,17 +104,26 @@ class P2PClient:
             self.make_new_connection()
 
     def broadcast(self, message: Message, sender: NetworkAddress):
-        msg_hash = sha256(bytes(message)).digest()
-        self.log.debug(str(msg_hash))
-        if msg_hash not in self.received_broadcasts:
-            self.received_broadcasts.append(msg_hash)
+        if not self.msg_is_known(message):
             for addr, connection in self.connections.items():
                 if str(sender) != addr:
                     connection.forward_message(message)
 
+    def msg_is_known(self, message: Message) -> bool:
+        msg_hash = sha256(bytes(message)).digest()
+        if msg_hash not in self.received_broadcasts:
+            self.received_broadcasts.append(msg_hash)
+            return False
+        else:
+            return True
+
     def send_chat(self, line: bytes):
         msg = ChatMessage(self.address, line)
         self.broadcast(msg, self.address)
+
+    def print_chat(self, chat_msg: ChatMessage):
+        if not self.msg_is_known(chat_msg):
+            print(f'{chat_msg.sender} said: {chat_msg.chat_message}')
 
     def handle_command(self, command: bytes):
         if command == b'cons':
