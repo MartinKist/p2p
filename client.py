@@ -104,11 +104,11 @@ class P2PClient:
             self.make_new_connection()
 
     def broadcast(self, message: Message, sender: NetworkAddress):
-        self.log.info(f"broadcast reveived form {sender}")
+        #self.log.info(f"broadcast reveived form {sender}")
         if not self.msg_is_known(message):
-            self.log.info(f"msg unknown")
+           # self.log.info(f"msg unknown")
             for addr, connection in self.connections.items():
-                self.log.info(addr)
+                #self.log.info(addr)
                 if str(sender) != addr:
                     self.log.info(f"message forwarded to {addr}")
                     connection.forward_message(message)
@@ -143,7 +143,7 @@ class P2PClient:
 
     def run(self):
         task.LoopingCall(self.check_connections).start(2)
-        task.LoopingCall(self.broadcast_participants()).start(2)
+        task.LoopingCall(self.broadcast_participants).start(2)
         stdio.StandardIO(UserInput(self))
 
         endpoint = TCP4ServerEndpoint(reactor, self.port)
