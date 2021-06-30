@@ -116,6 +116,14 @@ class P2PClient:
         msg = ChatMessage(self.address, line)
         self.broadcast(msg, self.address)
 
+    def handle_command(self, command: bytes):
+        if command == b'cons':
+            print('\n'.join(self.connections))
+        elif command == b'ips':
+            print('\n'.join(self.known_participants))
+        else:
+            print('unknown command.')
+
     def run(self):
         task.LoopingCall(self.check_connections).start(10)
 
