@@ -105,10 +105,10 @@ class P2PClient:
 
     def broadcast(self, message: Message, sender: NetworkAddress):
         if not self.msg_is_known(message):
+            if isinstance(message, ChatMessage):
+                self.print_chat(message)
             for addr, connection in self.connections.items():
                 if str(sender) != addr:
-                    if isinstance(message, ChatMessage):
-                        self.log.info(f"chat forwarded to {addr}")
                     connection.forward_message(message)
 
     def msg_is_known(self, message: Message) -> bool:
@@ -124,8 +124,7 @@ class P2PClient:
         self.broadcast(msg, self.address)
 
     def print_chat(self, chat_msg: ChatMessage):
-        if not self.msg_is_known(chat_msg):
-            print(f'{chat_msg.sender} said: {chat_msg.chat_message}')
+        print(f'{chat_msg.sender} said: {chat_msg.chat_message}')
 
     def handle_command(self, command: bytes):
         if command == b'cons':
