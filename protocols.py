@@ -76,9 +76,7 @@ class PeerProtocol(Protocol, ABC):
             self.handle_chat_message(message)
 
     def handle_chat_message(self, chat_message: ChatMessage):
-        self.client.print_chat(chat_message)
         self.client.broadcast(chat_message, self.peer)
-        self.log.info(f"broadcasting message")
 
     @abstractmethod
     def connectionMade(self):
