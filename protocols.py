@@ -76,7 +76,7 @@ class PeerProtocol(Protocol, ABC):
             self.handle_chat_message(message)
 
     def handle_chat_message(self, chat_message: ChatMessage):
-        print(f'{chat_message.sender} said: {chat_message.chat_message}')
+        self.client.print_chat(chat_message)
         self.client.broadcast(chat_message, self.peer)
 
     @abstractmethod
@@ -89,7 +89,8 @@ class PeerProtocol(Protocol, ABC):
 
     def handle_getadr(self, getadr: GetAddr):
         self.log.debug(f'Address request received from {self.peer}.')
-        self.transport.write(bytes(Addr(list(self.client.known_participants.values()))))
+        addr_msg = bytes(Addr(list(self.client.known_participants.values())))
+        self.client.broadcast(addr_msg, self.peer)
 
     def handle_addr(self, addr: Addr):
         self.log.debug(f'Address information received from {self.peer}.')
