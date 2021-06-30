@@ -13,6 +13,9 @@ from typing import Union
 BYTEORDER = 'little'
 
 
+# TODO: write down protocol specifications in respective docstrings
+
+
 class MessageError(Exception):
     def __init__(self, msg_type: bytes, length: int, checksum: bytes, payload: bytes):
         self.msg_type = msg_type
@@ -126,9 +129,6 @@ class NetworkAddress(StructABC):
 
 
 class Message(StructABC, ABC):
-    # TODO: write down specification
-    # https://en.bitcoin.it/wiki/Protocol_documentation#Common_structures
-
     def __init__(self):
         self.id = random.randbytes(4)     # 4 Byte nonce to identify message
 
@@ -186,6 +186,9 @@ class Message(StructABC, ABC):
 
 
 class HeaderOnly(Message, ABC):
+    """
+    A message containing no payload.
+    """
     @property
     @abstractmethod
     def message_type(self) -> bytes:
@@ -201,6 +204,10 @@ class HeaderOnly(Message, ABC):
 
 
 class Version(Message):
+    """
+    A message containing the version of this client and the address on which this client accepts incoming connections,
+    used in handshake.
+    """
     def __init__(self, version: int, addr_recv: NetworkAddress, addr_from: NetworkAddress, nonce: bytes, timestamp: int = None):
         super().__init__()
 
@@ -237,65 +244,10 @@ class Version(Message):
         return cls(version, addr_recv, addr_from, nonce, timestamp=timestamp)
 
 
-class Ping(Message):
-    def __init__(self, nonce: bytes = None):
-        super().__init__()
-
-        if nonce is None:
-            self.nonce = random.randbytes(8)
-        else:
-            self.nonce = nonce
-
-    @property
-    def message_type(self) -> bytes:
-        return b'ping'.ljust(12, b'\0')
-
-    @property
-    def payload(self) -> bytes:
-        return self.nonce
-
-    @classmethod
-    def from_bytes(cls, data: bytes) -> Ping:
-        return cls(data)
-
-
-class Pong(Message):
-    def __init__(self, nonce: bytes = None):
-        super().__init__()
-
-        if nonce is None:
-            self.nonce = random.randbytes(8)
-        else:
-            self.nonce = nonce
-
-    @property
-    def message_type(self) -> bytes:
-        return b'pong'.ljust(12, b'\0')
-
-    @property
-    def payload(self) -> bytes:
-        return self.nonce
-
-    @classmethod
-    def from_bytes(cls, data: bytes) -> Pong:
-        return cls(data)
-
-
-class Reject(Message):
-    @property
-    def message_type(self) -> bytes:
-        return b'reject'.ljust(12, b'\0')
-
-    @property
-    def payload(self) -> bytes:
-        pass
-
-    @classmethod
-    def from_bytes(cls, data: bytes) -> Reject:
-        pass
-
-
 class Addr(Message):
+    """
+    A message that contains address information about known network participants.
+    """
     def __init__(self, addresses: list[NetworkAddress]):
         super().__init__()
 
@@ -324,6 +276,9 @@ class Addr(Message):
 
 
 class VerAck(HeaderOnly):
+    """
+    Acknowledgment message sent to a peer to signal that his version is accepted by this client, used in handshake.
+    """
     @property
     def message_type(self) -> bytes:
         return b'verack'.ljust(12, b'\0')
@@ -359,6 +314,73 @@ class ChatMessage(Message):
         sender = NetworkAddress.from_bytes(data[:10])
         chat_message = data[10:]
         return cls(sender, chat_message)
+
+
+class Ping(Message):
+    """
+    Currently unused, future clients will use these messages to check the health of their peers.
+    """
+    def __init__(self, nonce: bytes = None):
+        super().__init__()
+
+        if nonce is None:
+            self.nonce = random.randbytes(8)
+        else:
+            self.nonce = nonce
+
+    @property
+    def message_type(self) -> bytes:
+        return b'ping'.ljust(12, b'\0')
+
+    @property
+    def payload(self) -> bytes:
+        return self.nonce
+
+    @classmethod
+    def from_bytes(cls, data: bytes) -> Ping:
+        return cls(data)
+
+
+class Pong(Message):
+    """
+    Currently unused, future clients will use these messages to check the health of their peers.
+    """
+    def __init__(self, nonce: bytes = None):
+        super().__init__()
+
+        if nonce is None:
+            self.nonce = random.randbytes(8)
+        else:
+            self.nonce = nonce
+
+    @property
+    def message_type(self) -> bytes:
+        return b'pong'.ljust(12, b'\0')
+
+    @property
+    def payload(self) -> bytes:
+        return self.nonce
+
+    @classmethod
+    def from_bytes(cls, data: bytes) -> Pong:
+        return cls(data)
+
+
+class Reject(Message):
+    """
+    Currently unused, future clients will use these messages to signal a peer that something went wrong.
+    """
+    @property
+    def message_type(self) -> bytes:
+        return b'reject'.ljust(12, b'\0')
+
+    @property
+    def payload(self) -> bytes:
+        pass
+
+    @classmethod
+    def from_bytes(cls, data: bytes) -> Reject:
+        pass
 
 
 message_types = {b'version': Version,
