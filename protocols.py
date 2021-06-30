@@ -90,11 +90,11 @@ class PeerProtocol(Protocol, ABC):
     def handle_getadr(self, getadr: GetAddr):
         self.log.debug(f'Address request received from {self.peer}.')
         addr_msg = Addr(list(self.client.known_participants.values()))
-        self.client.broadcast(addr_msg, self.peer)
 
     def handle_addr(self, addr: Addr):
         self.log.debug(f'Address information received from {self.peer}.')
         map(self.client.add_participant, addr.addresses)
+        self.client.broadcast(addr, self.peer)
 
     def handle_ping(self, ping: Ping):
         self.log.debug(f'Ping message received from {self.peer}.')
