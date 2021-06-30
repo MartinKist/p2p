@@ -110,7 +110,7 @@ class P2PClient:
             for addr, connection in self.connections.items():
                 #self.log.info(addr)
                 if str(sender) != addr:
-                    self.log.info(f"message forwarded to {addr}")
+                    #self.log.info(f"message forwarded to {addr}")
                     connection.forward_message(message)
 
     def msg_is_known(self, message: Message) -> bool:
@@ -143,7 +143,7 @@ class P2PClient:
 
     def run(self):
         task.LoopingCall(self.check_connections).start(2)
-        task.LoopingCall(self.broadcast_participants).start(2)
+        task.LoopingCall(self.broadcast_participants).start(5)
         stdio.StandardIO(UserInput(self))
 
         endpoint = TCP4ServerEndpoint(reactor, self.port)
