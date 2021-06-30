@@ -176,16 +176,11 @@ class UserInput(basic.LineReceiver):
     def __init__(self, client):
         self.client = client
 
-    def connectionMade(self):
-        # self.transport.write(b">>> ")
-        pass
-
     def lineReceived(self, line):
         if line.startswith(b'!'):
             self.client.handle_command(line[1:])
         else:
             self.client.send_chat(line)
-        # self.transport.write(b">>> ")
 
 
 class PeerFactory(Factory):
