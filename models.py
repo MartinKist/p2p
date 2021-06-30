@@ -276,7 +276,7 @@ class Pong(Message):
         return self.nonce
 
     @classmethod
-    def from_bytes(cls, data: bytes) -> Message:
+    def from_bytes(cls, data: bytes) -> Pong:
         return cls(data)
 
 
@@ -290,7 +290,7 @@ class Reject(Message):
         pass
 
     @classmethod
-    def from_bytes(cls, data: bytes) -> Message:
+    def from_bytes(cls, data: bytes) -> Reject:
         pass
 
 
@@ -314,7 +314,7 @@ class Addr(Message):
                + b''.join(bytes(adr) for adr in self.addresses)
 
     @classmethod
-    def from_bytes(cls, data: bytes) -> Message:
+    def from_bytes(cls, data: bytes) -> Addr:
         count_len = VarInt.get_length(data[0])
         count = int(VarInt(data[:count_len]))
         addresses = [NetworkAddress.from_bytes(data[count_len + x * 10: count_len + x * 10 + 10]) for x in range(count)]
@@ -354,7 +354,7 @@ class ChatMessage(Message):
         return bytes(self.sender) + self.chat_message.encode('utf-8')
 
     @classmethod
-    def from_bytes(cls, data: bytes) -> Message:
+    def from_bytes(cls, data: bytes) -> ChatMessage:
         sender = NetworkAddress.from_bytes(data[:10])
         chat_message = data[10:]
         return cls(sender, chat_message)
