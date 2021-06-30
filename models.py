@@ -173,6 +173,7 @@ class Message(StructABC, ABC):
         if cls.calculate_checksum(payload) == checksum and msg_type in message_types:
             new_msg = message_types[msg_type].from_bytes(payload)
             new_msg.id = id
+            return new_msg
         else:
             raise MessageError(msg_type, length, checksum, payload)
 
