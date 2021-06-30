@@ -129,6 +129,9 @@ class Message(StructABC, ABC):
     # TODO: write down specification
     # https://en.bitcoin.it/wiki/Protocol_documentation#Common_structures
 
+    def __init__(self):
+        self.id = random.randbytes(4)     # 4 Byte nonce to identify message
+
     @staticmethod
     def calculate_checksum(data: bytes) -> bytes:
         return sha256(sha256(data).digest()).digest()[:4]
@@ -152,11 +155,10 @@ class Message(StructABC, ABC):
         return len(self.payload)
 
     def __bytes__(self) -> bytes:
-        nonce = random.randbytes(4)     # 4 Byte nonce to identify identical messages
         return self.message_type \
                + self.length.to_bytes(4, BYTEORDER) \
                + self.checksum \
-               + nonce \
+               + self.id \
                + self.payload
 
     @classmethod
@@ -165,11 +167,12 @@ class Message(StructABC, ABC):
         msg_type = data[:12].rstrip(b'\0')
         length = int.from_bytes(data[12:16], BYTEORDER)
         checksum = data[16:20]
-        nonce = data[20:24]
+        id = data[20:24]
         payload = data[24:24 + length]
 
         if cls.calculate_checksum(payload) == checksum and msg_type in message_types:
-            return message_types[msg_type].from_bytes(payload)
+            new_msg = message_types[msg_type].from_bytes(payload)
+            new_msg.id = id
         else:
             raise MessageError(msg_type, length, checksum, payload)
 
@@ -198,6 +201,8 @@ class HeaderOnly(Message, ABC):
 
 class Version(Message):
     def __init__(self, version: int, addr_recv: NetworkAddress, addr_from: NetworkAddress, nonce: bytes, timestamp: int = None):
+        super().__init__()
+
         self.version = version
         self.addr_recv = addr_recv
         self.addr_from = addr_from
@@ -233,6 +238,8 @@ class Version(Message):
 
 class Ping(Message):
     def __init__(self, nonce: bytes = None):
+        super().__init__()
+
         if nonce is None:
             self.nonce = random.randbytes(8)
         else:
@@ -253,6 +260,8 @@ class Ping(Message):
 
 class Pong(Message):
     def __init__(self, nonce: bytes = None):
+        super().__init__()
+
         if nonce is None:
             self.nonce = random.randbytes(8)
         else:
@@ -272,7 +281,6 @@ class Pong(Message):
 
 
 class Reject(Message):
-    # TODO
     @property
     def message_type(self) -> bytes:
         return b'reject'.ljust(12, b'\0')
@@ -288,6 +296,8 @@ class Reject(Message):
 
 class Addr(Message):
     def __init__(self, addresses: list[NetworkAddress]):
+        super().__init__()
+
         self.addresses = addresses
 
     @property
@@ -326,6 +336,8 @@ class GetAddr(HeaderOnly):
 
 class ChatMessage(Message):
     def __init__(self, sender: NetworkAddress, chat_message: Union[bytes, str]):
+        super().__init__()
+
         self.sender = sender
 
         if isinstance(chat_message, bytes):
