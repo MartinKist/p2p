@@ -105,7 +105,7 @@ class P2PClient:
 
     def broadcast(self, message: Message, sender: NetworkAddress):
         msg_hash = sha256(bytes(message)).digest()
-        self.log.debug(msg_hash)
+        self.log.debug(str(msg_hash))
         if msg_hash not in self.received_broadcasts:
             self.received_broadcasts.append(msg_hash)
             for addr, connection in self.connections.items():
