@@ -104,13 +104,11 @@ class P2PClient:
             self.make_new_connection()
 
     def broadcast(self, message: Message, sender: NetworkAddress):
-        #self.log.info(f"broadcast reveived form {sender}")
         if not self.msg_is_known(message):
-           # self.log.info(f"msg unknown")
             for addr, connection in self.connections.items():
-                #self.log.info(addr)
                 if str(sender) != addr:
-                    #self.log.info(f"message forwarded to {addr}")
+                    if isinstance(message, ChatMessage):
+                        self.log.info(f"chat forwarded to {addr}")
                     connection.forward_message(message)
 
     def msg_is_known(self, message: Message) -> bool:
