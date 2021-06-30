@@ -134,7 +134,7 @@ class P2PClient:
             print('unknown command.')
 
     def run(self):
-        task.LoopingCall(self.check_connections).start(10)
+        task.LoopingCall(self.check_connections).start(2)
 
         stdio.StandardIO(UserInput(self))
 
