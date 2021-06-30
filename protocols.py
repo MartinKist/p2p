@@ -45,7 +45,7 @@ class PeerProtocol(Protocol, ABC):
             return self._peer
 
     def connectionLost(self, reason: Failure = ConnectionDone):
-        self.log.info(f'connection to Peer {self.peer} lost')
+        self.log.debug(f'connection to Peer {self.peer} lost')
         self.log.debug('reason:' + str(reason))
 
         self.client.remove_connection(self)
@@ -142,7 +142,7 @@ class IncomingPeerProtocol(PeerProtocol):
     def handle_verack(self, verack: VerAck):
         super().handle_verack(verack)
 
-        self.log.info(f'Connection to {self.peer} established.')
+        self.log.debug(f'Connection to {self.peer} established.')
         self.state = States.CON_ESTABLISHED
 
 
@@ -158,7 +158,7 @@ class OutgoingPeerProtocol(PeerProtocol):
     def handle_version(self, version: Version):
         super().handle_version(version)
 
-        self.log.info(f'Connection to {self.peer} established.')
+        self.log.debug(f'Connection to {self.peer} established.')
         self.state = States.CON_ESTABLISHED
 
         reactor.callLater(0.1, self.transport.write, bytes(GetAddr()))
