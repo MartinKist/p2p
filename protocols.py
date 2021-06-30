@@ -89,7 +89,7 @@ class PeerProtocol(Protocol, ABC):
 
     def handle_getadr(self, getadr: GetAddr):
         self.log.debug(f'Address request received from {self.peer}.')
-        addr_msg = bytes(Addr(list(self.client.known_participants.values())))
+        addr_msg = Addr(list(self.client.known_participants.values()))
         self.client.broadcast(addr_msg, self.peer)
 
     def handle_addr(self, addr: Addr):
