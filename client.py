@@ -105,7 +105,7 @@ class P2PClient:
 
     def broadcast(self, message: Message, sender: NetworkAddress):
         if not self.msg_is_known(message):
-            if isinstance(message, ChatMessage):
+            if isinstance(message, ChatMessage) and sender != self.address:
                 self.print_chat(message)
             for addr, connection in self.connections.items():
                 if str(sender) != addr:
