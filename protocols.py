@@ -10,10 +10,12 @@ from twisted.internet.error import ConnectionDone
 from twisted.internet.protocol import Factory, Protocol
 from twisted.logger import Logger
 from twisted.protocols import basic
-from twisted.protocols.basic import LineReceiver
 from twisted.python.failure import Failure
 
 from models import Version, Message, VerAck, MessageError, GetAddr, NetworkAddress, Addr, Ping, Pong, ChatMessage
+
+
+Factory.noisy = False
 
 
 class States(Enum):
@@ -174,16 +176,19 @@ class UserInput(basic.LineReceiver):
         self.client = client
 
     def connectionMade(self):
-        self.transport.write(b">>> ")
+        # self.transport.write(b">>> ")
+        pass
 
     def lineReceived(self, line):
-        self.client.send_chat(line)
-        self.transport.write(b">>> ")
+        if line.startswith(b'!'):
+            self.client.handle_command(line[1:])
+        else:
+            self.client.send_chat(line)
+        # self.transport.write(b">>> ")
 
 
 class PeerFactory(Factory):
     protocol = NotImplemented
-    noisy = False
 
     def __init__(self, client: 'P2PClient'):
         self.client = client
