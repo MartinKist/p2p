@@ -9,7 +9,7 @@ from twisted.logger import Logger
 from twisted.python.failure import Failure
 
 import defaults
-from models import NetworkAddress, Message, ChatMessage
+from models import NetworkAddress, Message, ChatMessage, Addr
 from protocols import IncomingPeerFactory, OutgoingPeerFactory, PeerProtocol, UserInput
 
 
@@ -137,9 +137,13 @@ class P2PClient:
         else:
             print('unknown command.')
 
+    def broadcast_participants(self):
+        addr_msg = Addr(list(self.known_participants.values()))
+        self.broadcast(addr_msg, self.address)
+
     def run(self):
         task.LoopingCall(self.check_connections).start(2)
-
+        task.LoopingCall(self.broadcast_participants()).start(2)
         stdio.StandardIO(UserInput(self))
 
         endpoint = TCP4ServerEndpoint(reactor, self.port)
